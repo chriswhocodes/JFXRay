@@ -5,46 +5,43 @@
  */
 package com.chrisnewland.javafx.jfxray;
 
-import java.io.File;
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
+import java.nio.ByteBuffer;
 
 import javafx.animation.Animation;
 import javafx.animation.KeyFrame;
 import javafx.animation.TimelineBuilder;
 import javafx.application.Application;
-import javafx.collections.FXCollections;
-import javafx.collections.ObservableList;
 import javafx.event.ActionEvent;
 import javafx.event.EventHandler;
-import javafx.geometry.Insets;
-import javafx.geometry.Orientation;
 import javafx.scene.Scene;
-import javafx.scene.control.Button;
-import javafx.scene.control.Label;
-import javafx.scene.control.SplitPane;
-import javafx.scene.control.TableView;
-import javafx.scene.control.TextArea;
-import javafx.scene.control.TreeItem;
+import javafx.scene.canvas.Canvas;
+import javafx.scene.canvas.GraphicsContext;
+import javafx.scene.image.Image;
+import javafx.scene.image.PixelFormat;
+import javafx.scene.image.PixelWriter;
 import javafx.scene.layout.BorderPane;
-import javafx.scene.layout.HBox;
-import javafx.scene.text.Text;
-import javafx.stage.FileChooser;
+import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
 import javafx.stage.WindowEvent;
 import javafx.util.Duration;
 
 public class JFXRayApp extends Application
 {
-    private Stage stage;
+    private GraphicsContext gc;
+    private JFXRay raytracer;
 
-  
+    final String[] lines = new String[9];
+
+    final int ix = 512;
+    final int iy = 512;
+    final int rays = 64;
+
     // Called by JFX
     public JFXRayApp()
     {
+
     }
 
     public JFXRayApp(String[] args)
@@ -52,321 +49,80 @@ public class JFXRayApp extends Application
         launch(args);
     }
 
-    public void openTreeAtMember(IMetaMember member)
+    @Override
+    public void start(final Stage stage)
     {
-        List<String> path = member.getTreePath();
-
-        // would be better to identify open nodes and close?
-        clearAndRefresh();
-
-        TreeItem<Object> curNode = classTree.getRootItem();
-
-        StringBuilder builtPath = new StringBuilder();
-
-        int pathLength = path.size();
-        int pos = 0;
-
-        int rowsAbove = 0;
-
-        boolean found = false;
-
-        for (String part : path)
+        stage.setOnCloseRequest(new EventHandler<WindowEvent>()
         {
-            builtPath.append(part);
-
-            String matching;
-
-            found = false;
-
-            if (pos++ == pathLength - 1)
+            @Override
+            public void handle(WindowEvent arg0)
             {
-                matching = part;
+
             }
-            else
+        });
+
+        int width = 1024;
+        int height = 592;
+
+        Canvas canvas = new Canvas(width, height);
+        gc = canvas.getGraphicsContext2D();
+
+        VBox box = new VBox();
+        box.getChildren().add(canvas);
+
+        Scene scene = new Scene(box, width, height);
+
+        stage.setTitle("JFXRay");
+        stage.setScene(scene);
+        stage.show();
+
+        lines[0] = "1111111 111111 1       1";
+        lines[1] = "   1    1       1     1 ";
+        lines[2] = "   1    1        1   1  ";
+        lines[3] = "   1    1         1 1   ";
+        lines[4] = "   1    11111      1    ";
+        lines[5] = "   1    1         1 1   ";
+        lines[6] = "   1    1        1   1  ";
+        lines[7] = "   1    1       1     1 ";
+        lines[8] = "1111    1      1       1";
+
+        raytracer = new JFXRay();
+
+        Thread t = new Thread(new Runnable()
+        {
+            @Override
+            public void run()
             {
-                matching = builtPath.toString();
+                raytracer.render(ix, iy, rays, lines);
             }
+        });
 
-            for (TreeItem<Object> node : curNode.getChildren())
+        t.start();
+
+        int refresh = 200; // ms
+
+        final Duration oneFrameAmt = Duration.millis(refresh);
+
+        final KeyFrame oneFrame = new KeyFrame(oneFrameAmt, new EventHandler<ActionEvent>()
+        {
+            @Override
+            public void handle(ActionEvent arg0)
             {
-                rowsAbove++;
-
-                String nodeText = node.getValue().toString();
-
-                if (matching.equals(nodeText))
+                if (raytracer != null)
                 {
-                    builtPath.append('.');
-                    curNode = node;
-                    curNode.setExpanded(true);
-                    classTree.select(curNode);
-                    found = true;
-                    break;
+                    byte[] imgData = raytracer.getImageData();
+
+                    PixelWriter pixelWriter = gc.getPixelWriter();
+
+                    PixelFormat<ByteBuffer> pixelFormat = PixelFormat.getByteRgbInstance();
+
+                    pixelWriter.setPixels(0, 0, ix, iy, pixelFormat, imgData, 0, ix * 3);
                 }
+
             }
-        }
+        });
 
-        if (found)
-        {
-            classTree.scrollTo(rowsAbove);
-            classMemberList.selectMember(member);
-        }
-    }
+        TimelineBuilder.create().cycleCount(Animation.INDEFINITE).keyFrames(oneFrame).build().play();
 
-    void openSource(IMetaMember member)
-    {
-        MetaClass methodClass = member.getMetaClass();
-
-        String fqName = methodClass.getFullyQualifiedName();
-
-        fqName = fqName.replace(".", "/") + ".java";
-
-        String source = ResourceLoader.getSource(config.getSourceLocations(), fqName);
-
-        TextViewerStage tvs = null;
-        String title = "Source code for " + fqName;
-
-        for (Stage s : openPopupStages)
-        {
-            if (s instanceof TextViewerStage && title.equals(s.getTitle()))
-            {
-                tvs = (TextViewerStage) s;
-                break;
-            }
-        }
-
-        if (tvs == null)
-        {
-            tvs = new TextViewerStage(JITWatchUI.this, title, source, true);
-            tvs.show();
-            openPopupStages.add(tvs);
-        }
-
-        tvs.requestFocus();
-
-        tvs.jumpTo(member.getSignatureRegEx());
-    }
-
-    void openBytecode(IMetaMember member)
-    {
-        String searchMethod = member.getSignatureForBytecode();
-
-        MetaClass methodClass = member.getMetaClass();
-
-        Map<String, String> bytecodeCache = methodClass.getBytecodeCache(config.getClassLocations());
-
-        String bc = bytecodeCache.get(searchMethod);
-
-        TextViewerStage tvs = new TextViewerStage(JITWatchUI.this, "Bytecode for " + member.toString(), bc, false);
-        tvs.show();
-
-        openPopupStages.add(tvs);
-    }
-
-    void openNativeCode(IMetaMember member)
-    {
-        String nativeCode = member.getNativeCode();
-        TextViewerStage tvs = new TextViewerStage(JITWatchUI.this, "Native code for " + member.toString(), nativeCode, false);
-        tvs.show();
-
-        openPopupStages.add(tvs);
-    }
-    
-    void openTextViewer(String title, String content)
-    {
-        TextViewerStage tvs = new TextViewerStage(JITWatchUI.this, title, content, false);
-        tvs.show();
-        openPopupStages.add(tvs);
-    }
-
-    private void chooseHotSpotFile()
-    {
-        FileChooser fc = new FileChooser();
-        fc.setTitle("Choose HotSpot log file");
-        String curDir = System.getProperty("user.dir");
-        File dirFile = new File(curDir);
-        fc.setInitialDirectory(dirFile);
-
-        File result = fc.showOpenDialog(stage);
-
-        if (result != null)
-        {
-            watchFile = result;
-            log("Selected file: " + watchFile.getAbsolutePath());
-            log("Click Start button to process or tail the file");
-            updateButtons();
-
-            refreshLog();
-        }
-    }
-
-    void showMemberInfo(IMetaMember member)
-    {
-        memberAttrList.clear();
-
-        if (member == null)
-        {
-            return;
-        }
-
-        selectedMember = member;
-
-        List<String> queuedAttrKeys = member.getQueuedAttributes();
-
-        for (String key : queuedAttrKeys)
-        {
-            memberAttrList.add(new AttributeTableRow("Queued", key, member.getQueuedAttribute(key)));
-        }
-
-        List<String> compiledAttrKeys = member.getCompiledAttributes();
-
-        for (String key : compiledAttrKeys)
-        {
-            memberAttrList.add(new AttributeTableRow("Compiled", key, member.getCompiledAttribute(key)));
-        }
-    }
-
-    private void refresh()
-    {
-        if (repaintTree)
-        {
-            repaintTree = false;
-            classTree.showTree();
-        }
-
-        if (timeLineStage != null)
-        {
-            timeLineStage.redraw();
-        }
-
-        if (statsStage != null)
-        {
-            statsStage.redraw();
-        }
-
-        if (histoStage != null)
-        {
-            histoStage.redraw();
-        }
-
-        if (topListStage != null)
-        {
-            topListStage.redraw();
-        }
-
-        if (logBuffer.length() > 0)
-        {
-            refreshLog();
-        }
-
-        long totalMemory = runtime.totalMemory();
-        long freeMemory = runtime.freeMemory();
-        long usedMemory = totalMemory - freeMemory;
-
-        long megabyte = 1024 * 1024;
-
-        String heapString = "Heap: " + (usedMemory / megabyte) + "/" + (totalMemory / megabyte) + "M";
-
-        lblHeap.setText(heapString);
-
-        btnErrorLog.setText("Errors (" + errorCount + ")");
-    }
-
-    private void refreshLog()
-    {
-        textAreaLog.appendText(logBuffer.toString());
-        logBuffer.delete(0, logBuffer.length());
-    }
-
-    public IMetaMember getSelectedMember()
-    {
-        return selectedMember;
-    }
-
-    void clearAndRefresh()
-    {
-        selectedMember = null;
-        classTree.clear();
-        classTree.showTree();
-    }
-
-    public void handleStageClosed(Stage stage)
-    {
-        openPopupStages.remove(stage);
-
-        if (stage instanceof TimeLineStage)
-        {
-            btnTimeLine.setDisable(false);
-            timeLineStage = null;
-        }
-        else if (stage instanceof StatsStage)
-        {
-            btnStats.setDisable(false);
-            statsStage = null;
-        }
-        else if (stage instanceof HistoStage)
-        {
-            btnHisto.setDisable(false);
-            histoStage = null;
-        }
-        else if (stage instanceof ConfigStage)
-        {
-            btnConfigure.setDisable(false);
-            configStage = null;
-        }
-        else if (stage instanceof TopListStage)
-        {
-            btnTopList.setDisable(false);
-            topListStage = null;
-        }
-    }
-
-    @Override
-    public void handleJITEvent(JITEvent event)
-    {
-        log(event.toString());
-        repaintTree = true;
-    }
-
-    @Override
-    public void handleLogEntry(String entry)
-    {
-        log(entry);
-    }
-
-    @Override
-    public void handleErrorEntry(String entry)
-    {
-        errorLog.append(entry).append("\n");
-        errorCount++;
-    }
-
-    private void log(final String entry)
-    {
-        logBuffer.append(entry + "\n");
-    }
-
-    void refreshSelectedTreeNode(MetaClass metaClass)
-    {
-        classMemberList.clearClassMembers();
-
-        showMemberInfo(null);
-
-        if (metaClass == null)
-        {
-            // nothing selected
-            return;
-        }
-
-        classMemberList.setMetaClass(metaClass);
-    }
-
-    public PackageManager getPackageManager()
-    {
-        return model.getPackageManager();
-    }
-    
-    public Journal getJournal(String id)
-    {
-    	return model.getJournal(id);
     }
 }
