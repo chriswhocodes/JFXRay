@@ -1,4 +1,4 @@
-<project name="jitwatch" default="all" basedir=".">
+<project name="JFXRay" default="all" basedir=".">
 	<property name="src" value="src/main/java" />
 	<property name="target" value="target" />
 	<property name="resources" value="src/main/resources" />
@@ -30,13 +30,13 @@
 				<include name="images/**" />
 			</fileset>
 			<manifest>
-				<attribute name="Main-Class" value="com.chrisnewland.javafx.jfxray.JFXRay" />
+				<attribute name="Main-Class" value="com.chrisnewland.javafx.jfxray.JFXRayLaunch" />
 			</manifest>
 		</jar>
 	</target>
 
 	<target name="run" depends="jar">
-		<java classname="com.chrisnewland.javafx.jfxray.JFXRay" classpathref="classpath">
+		<java classname="com.chrisnewland.javafx.jfxray.JFXRayLaunch" classpathref="classpath">
 			<classpath>
 				<pathelement location="${target}/jfxray-1.0.0-SNAPSHOT.jar"/>
 			</classpath>

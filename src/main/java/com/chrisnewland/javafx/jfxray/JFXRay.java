@@ -1,7 +1,5 @@
 package com.chrisnewland.javafx.jfxray;
 
-import java.io.FileOutputStream;
-
 /*
  * Standing on the shoulders of giants.
  * I did not invent this raytracer, I merely converted it from C to Java 
@@ -66,6 +64,8 @@ public class JFXRay
             return x + "  " + y + "  " + z;
         }
     };
+    
+    private byte[] imageData;
 
     private static boolean[][] data;
     private int rows;
@@ -242,9 +242,21 @@ public class JFXRay
         return new Vector3f(p, p, p).add(sample(h, r).scale(0.5f));
     }
 
-    public JFXRay(int ix, int iy, int rays, String[] lines, String outfile) throws Exception
+    public byte[] getImageData()
+    {
+        return imageData;
+    }
+    
+    public JFXRay()
+    {
+        
+    }
+    
+    public void render(int ix, int iy, int rays, String[] lines)
     {
         init(lines);
+        
+        imageData = new byte[ix * iy * 3];
 
         // Camera direction
         Vector3f g = new Vector3f(-2, -12, 0).normalise();
@@ -258,9 +270,8 @@ public class JFXRay
         // WTF ? See https://news.ycombinator.com/item?id=6425965 for more.
         Vector3f c = a.add(b).scale(-256).add(g);
 
-        FileOutputStream fos = new FileOutputStream(outfile);
-        fos.write(new String("P6 " + ix + " " + iy + " 255 ").getBytes());
-
+        int pixel = 0;
+        
         for (int y = iy - 1; y >= 0; y--)
         {
             // For each column
@@ -304,40 +315,10 @@ public class JFXRay
 
                 }
 
-                fos.write((int) p.x);
-                fos.write((int) p.y);
-                fos.write((int) p.z);
+                imageData[pixel++] = (byte)p.x;
+                imageData[pixel++] = (byte)p.y;
+                imageData[pixel++] = (byte)p.z;
             }
         }
-        fos.close();
-    }
-
-    public static void main(String[] args) throws Exception
-    {
-
-        String[] lines = new String[5];
-/*
-        lines[0] = "1111111 111111 1       1";
-        lines[1] = "   1    1       1     1 ";
-        lines[2] = "   1    1        1   1  ";
-        lines[3] = "   1    1         1 1   ";
-        lines[4] = "   1    11111      1    ";
-        lines[5] = "   1    1         1 1   ";
-        lines[6] = "   1    1        1   1  ";
-        lines[7] = "   1    1       1     1 ";
-        lines[8] = "1111    1      1       1";
-*/
-	lines[0] = "111 1       1 111";
-	lines[1] = "1   1   111   1  ";
-	lines[2] = "1   111 1   1 111";
-	lines[3] = "1   1 1 1   1   1";
-	lines[4] = "111 1 1 1   1 111";
-
-
-	int ix = 512;
-	int iy = 512;
-	int rays = 25;
-
-        new JFXRay(ix, iy, rays, lines, "jfx.ppm");
     }
 }
