@@ -1,4 +1,4 @@
-jray
-====
+JFXRay
+======
 
 JavaFX Raytracer
