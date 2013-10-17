@@ -54,7 +54,7 @@ public class JFXRay
         // Used later for normalizing the vector
         Vector3f normalise()
         {
-            float factor = (float) (1f / (float) Math.sqrt((float) dot(this)));
+            float factor = (float) (1f / (float) Math.sqrt(dot(this)));
 
             return scale(factor);
         }
@@ -64,7 +64,7 @@ public class JFXRay
             return x + "  " + y + "  " + z;
         }
     };
-    
+
     private byte[] imageData;
 
     private static boolean[][] data;
@@ -87,12 +87,6 @@ public class JFXRay
                 data[rows - 1 - r][cols - 1 - c] = ch == '1';
             }
         }
-    }
-
-    // Random generator, return a float within range [0-1]
-    float randomFloat2()
-    {
-        return (float) Math.random();
     }
 
     // The intersection test for line [o,v].
@@ -179,7 +173,7 @@ public class JFXRay
         Vector3f h = origin.add(direction.scale(t));
 
         // 'l' = direction to light (with random delta for soft-shadows).
-        Vector3f l = new Vector3f(9 + randomFloat2(), 9 + randomFloat2(), 16);
+        Vector3f l = new Vector3f(9 + DirtyMaths.getRandomFloat(), 9 + DirtyMaths.getRandomFloat(), 16);
 
         l = l.add(h.scale(-1));
 
@@ -246,45 +240,116 @@ public class JFXRay
     {
         return imageData;
     }
-    
+
     public JFXRay()
     {
-        
+
     }
-    
-    public void render(int ix, int iy, int rays, String[] lines)
+
+    public void render(final int ix, final int iy, final int rays, final String[] lines, int threads)
     {
+        long start = System.currentTimeMillis();
+
+        DirtyMaths.init(4096);
+
         init(lines);
-        
+
         imageData = new byte[ix * iy * 3];
 
         // Camera direction
-        Vector3f g = new Vector3f(-2, -12, 0).normalise();
+        final Vector3f g = new Vector3f(-2, -12, 0).normalise();
 
         // Camera up vector...Seem Z is pointing up :/ WTF !
-        Vector3f a = new Vector3f(0, 0, 1).cross(g).normalise().scale(.003f);
+        final Vector3f a = new Vector3f(0, 0, 1).cross(g).normalise().scale(.003f);
 
         // The right vector, obtained via traditional cross-product
-        Vector3f b = g.cross(a).normalise().scale(.003f);
+        final Vector3f b = g.cross(a).normalise().scale(.003f);
 
         // WTF ? See https://news.ycombinator.com/item?id=6425965 for more.
-        Vector3f c = a.add(b).scale(-256).add(g);
+        final Vector3f c = a.add(b).scale(-256).add(g);
 
-        int pixel = 0;
+        final Vector3f rayOrigin = new Vector3f(17f, 16f, 8f);
+
+        //TODO fork-join
         
-        for (int y = iy - 1; y >= 0; y--)
+        new Thread(new Runnable()
         {
-            // For each column
-            for (int x= ix - 1; x >= 0; x--)
-            { // For each pixel in a line
+            @Override
+            public void run()
+            {
+                int pixel = 0;
+                
+                // For each line
+                for (int y = iy - 1; y >= 256; y--)
+                {
+                    // For each pixel in a line
+                    for (int x = ix - 1; x >= 0; x--)
+                    {
+                        // Reuse the vector class to store not XYZ but a RGB
+                        // pixel color
+                        // Default pixel color is almost pitch black
+                        Vector3f p = new Vector3f(13, 13, 13);
 
+                        // Cast 64 rays per pixel (For blur (stochastic
+                        // sampling) and
+                        // soft-shadows.
+                        for (int r = rays - 1; r >= 0; r--)
+                        {
+                            // The delta to apply to the origin of the view (For
+                            // Depth
+                            // of View blur).
+
+                            // v t = a * (R() - .5) * 99 + b * (R() - .5) * 99;
+
+                            // A little bit of delta up/down and left/right
+                            Vector3f t = a.scale(DirtyMaths.getRandomFloat() - 0.5f);
+                            t = t.scale(99);
+
+                            Vector3f t2 = b.scale(DirtyMaths.getRandomFloat() - 0.5f);
+                            t2 = t2.scale(99);
+
+                            t = t.add(t2);
+
+                            // Set the camera focal point v(17,16,8) and Cast
+                            // the ray
+                            // Accumulate the color returned in the p variable
+                            // Ray Direction with random deltas for stochastic
+                            // sampling
+
+                            Vector3f dirA = a.scale(DirtyMaths.getRandomFloat() + x);
+                            Vector3f dirB = b.scale(DirtyMaths.getRandomFloat() + y);
+                            Vector3f dirC = dirA.add(dirB).add(c);
+
+                            Vector3f dir = t.scale(-1f).add(dirC.scale(16f)).normalise();
+
+                            // Ray Origin +p for color accumulation
+                            p = sample(rayOrigin.add(t), dir).scale(3.5f).add(p);
+
+                        }
+
+                        imageData[pixel++] = (byte) p.x;
+                        imageData[pixel++] = (byte) p.y;
+                        imageData[pixel++] = (byte) p.z;
+                    }
+                }
+            }
+        }).start();
+
+        int pixel = ix * 256 * 3;
+        
+        // For each line
+        for (int y = 255; y >= 0; y--)
+        {
+            // For each pixel in a line
+            for (int x = ix - 1; x >= 0; x--)
+            {
                 // Reuse the vector class to store not XYZ but a RGB pixel color
                 // Default pixel color is almost pitch black
                 Vector3f p = new Vector3f(13, 13, 13);
 
                 // Cast 64 rays per pixel (For blur (stochastic sampling) and
                 // soft-shadows.
-                for (int r = rays-1; r >= 0; r--)
+                for (int r = rays - 1; r >= 0; r--)
                 {
                     // The delta to apply to the origin of the view (For Depth
                     // of View blur).
@@ -292,10 +357,10 @@ public class JFXRay
                     // v t = a * (R() - .5) * 99 + b * (R() - .5) * 99;
 
                     // A little bit of delta up/down and left/right
-                    Vector3f t = a.scale(randomFloat2() - 0.5f);
+                    Vector3f t = a.scale(DirtyMaths.getRandomFloat() - 0.5f);
                     t = t.scale(99);
 
-                    Vector3f t2 = b.scale(randomFloat2() - 0.5f);
+                    Vector3f t2 = b.scale(DirtyMaths.getRandomFloat() - 0.5f);
                     t2 = t2.scale(99);
 
                     t = t.add(t2);
@@ -304,21 +369,25 @@ public class JFXRay
                     // Accumulate the color returned in the p variable
                     // Ray Direction with random deltas for stochastic sampling
 
-                    Vector3f dirA = a.scale(randomFloat2() + x);
-                    Vector3f dirB = b.scale(randomFloat2() + y);
+                    Vector3f dirA = a.scale(DirtyMaths.getRandomFloat() + x);
+                    Vector3f dirB = b.scale(DirtyMaths.getRandomFloat() + y);
                     Vector3f dirC = dirA.add(dirB).add(c);
 
                     Vector3f dir = t.scale(-1f).add(dirC.scale(16f)).normalise();
 
                     // Ray Origin +p for color accumulation
-                    p = sample(new Vector3f(17f, 16f, 8f).add(t), dir).scale(3.5f).add(p);
+                    p = sample(rayOrigin.add(t), dir).scale(3.5f).add(p);
 
                 }
 
-                imageData[pixel++] = (byte)p.x;
-                imageData[pixel++] = (byte)p.y;
-                imageData[pixel++] = (byte)p.z;
+                imageData[pixel++] = (byte) p.x;
+                imageData[pixel++] = (byte) p.y;
+                imageData[pixel++] = (byte) p.z;
             }
         }
+
+        long stop = System.currentTimeMillis();
+
+        System.out.println("Took " + (stop - start) + "ms");
     }
 }

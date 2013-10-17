@@ -5,8 +5,6 @@
  */
 package com.chrisnewland.javafx.jfxray;
 
-import java.awt.image.BufferedImage;
-import java.io.ByteArrayInputStream;
 import java.nio.ByteBuffer;
 
 import javafx.animation.Animation;
@@ -18,10 +16,8 @@ import javafx.event.EventHandler;
 import javafx.scene.Scene;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
-import javafx.scene.image.Image;
 import javafx.scene.image.PixelFormat;
 import javafx.scene.image.PixelWriter;
-import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
 import javafx.stage.WindowEvent;
@@ -93,7 +89,7 @@ public class JFXRayApp extends Application
             @Override
             public void run()
             {
-                raytracer.render(ix, iy, rays, lines);
+                raytracer.render(ix, iy, rays, lines, 2);
             }
         });
 
