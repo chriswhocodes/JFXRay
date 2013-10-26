@@ -270,119 +270,99 @@ public class JFXRay
 
         final Vector3f rayOrigin = new Vector3f(17f, 16f, 8f);
 
-        //TODO fork-join
-        
-        new Thread(new Runnable()
+        final int linesPerThread = iy / threads;
+        System.out.println("LinesPerThread: " + linesPerThread);
+
+        Thread[] workers = new Thread[threads];
+
+        for (int i = 0; i < threads; i++)
         {
-            @Override
-            public void run()
+            final int startingLine = iy - 1 - (i * linesPerThread);
+            final int pixelBufferOffset = i * linesPerThread;
+
+            System.out.println("Thread " + i + " plotting " + startingLine);
+
+            Thread worker = new Thread(new Runnable()
             {
-                int pixel = 0;
-                
-                // For each line
-                for (int y = iy - 1; y >= 256; y--)
+                @Override
+                public void run()
                 {
-                    // For each pixel in a line
-                    for (int x = ix - 1; x >= 0; x--)
+                    int pixel = ix * pixelBufferOffset * 3;
+
+                    // For each line
+                    for (int y = startingLine; y > startingLine - linesPerThread; y--)
                     {
-                        // Reuse the vector class to store not XYZ but a RGB
-                        // pixel color
-                        // Default pixel color is almost pitch black
-                        Vector3f p = new Vector3f(13, 13, 13);
-
-                        // Cast 64 rays per pixel (For blur (stochastic
-                        // sampling) and
-                        // soft-shadows.
-                        for (int r = rays - 1; r >= 0; r--)
+                        // For each pixel in a line
+                        for (int x = ix - 1; x >= 0; x--)
                         {
-                            // The delta to apply to the origin of the view (For
-                            // Depth
-                            // of View blur).
+                            // Reuse the vector class to store not XYZ but a RGB
+                            // pixel color
+                            // Default pixel color is almost pitch black
+                            Vector3f p = new Vector3f(13, 13, 13);
 
-                            // v t = a * (R() - .5) * 99 + b * (R() - .5) * 99;
+                            // Cast 64 rays per pixel (For blur (stochastic
+                            // sampling) and
+                            // soft-shadows.
+                            for (int r = rays - 1; r >= 0; r--)
+                            {
+                                // The delta to apply to the origin of the view
+                                // (For
+                                // Depth
+                                // of View blur).
 
-                            // A little bit of delta up/down and left/right
-                            Vector3f t = a.scale(DirtyMaths.getRandomFloat() - 0.5f);
-                            t = t.scale(99);
+                                // v t = a * (R() - .5) * 99 + b * (R() - .5) *
+                                // 99;
 
-                            Vector3f t2 = b.scale(DirtyMaths.getRandomFloat() - 0.5f);
-                            t2 = t2.scale(99);
+                                // A little bit of delta up/down and left/right
+                                Vector3f t = a.scale(DirtyMaths.getRandomFloat() - 0.5f);
+                                t = t.scale(99);
 
-                            t = t.add(t2);
+                                Vector3f t2 = b.scale(DirtyMaths.getRandomFloat() - 0.5f);
+                                t2 = t2.scale(99);
 
-                            // Set the camera focal point v(17,16,8) and Cast
-                            // the ray
-                            // Accumulate the color returned in the p variable
-                            // Ray Direction with random deltas for stochastic
-                            // sampling
+                                t = t.add(t2);
 
-                            Vector3f dirA = a.scale(DirtyMaths.getRandomFloat() + x);
-                            Vector3f dirB = b.scale(DirtyMaths.getRandomFloat() + y);
-                            Vector3f dirC = dirA.add(dirB).add(c);
+                                // Set the camera focal point v(17,16,8) and
+                                // Cast
+                                // the ray
+                                // Accumulate the color returned in the p
+                                // variable
+                                // Ray Direction with random deltas for
+                                // stochastic
+                                // sampling
 
-                            Vector3f dir = t.scale(-1f).add(dirC.scale(16f)).normalise();
+                                Vector3f dirA = a.scale(DirtyMaths.getRandomFloat() + x);
+                                Vector3f dirB = b.scale(DirtyMaths.getRandomFloat() + y);
+                                Vector3f dirC = dirA.add(dirB).add(c);
 
-                            // Ray Origin +p for color accumulation
-                            p = sample(rayOrigin.add(t), dir).scale(3.5f).add(p);
+                                Vector3f dir = t.scale(-1f).add(dirC.scale(16f)).normalise();
 
+                                // Ray Origin +p for color accumulation
+                                p = sample(rayOrigin.add(t), dir).scale(3.5f).add(p);
+
+                            }
+
+                            imageData[pixel++] = (byte) p.x;
+                            imageData[pixel++] = (byte) p.y;
+                            imageData[pixel++] = (byte) p.z;
                         }
-
-                        imageData[pixel++] = (byte) p.x;
-                        imageData[pixel++] = (byte) p.y;
-                        imageData[pixel++] = (byte) p.z;
                     }
                 }
-            }
-        }).start();
+            });
 
-        int pixel = ix * 256 * 3;
-        
-        // For each line
-        for (int y = 255; y >= 0; y--)
+            worker.start();
+            workers[i] = worker;
+        }
+
+        for (int i = 0; i < threads; i++)
         {
-            // For each pixel in a line
-            for (int x = ix - 1; x >= 0; x--)
+            try
             {
-                // Reuse the vector class to store not XYZ but a RGB pixel color
-                // Default pixel color is almost pitch black
-                Vector3f p = new Vector3f(13, 13, 13);
-
-                // Cast 64 rays per pixel (For blur (stochastic sampling) and
-                // soft-shadows.
-                for (int r = rays - 1; r >= 0; r--)
-                {
-                    // The delta to apply to the origin of the view (For Depth
-                    // of View blur).
-
-                    // v t = a * (R() - .5) * 99 + b * (R() - .5) * 99;
-
-                    // A little bit of delta up/down and left/right
-                    Vector3f t = a.scale(DirtyMaths.getRandomFloat() - 0.5f);
-                    t = t.scale(99);
-
-                    Vector3f t2 = b.scale(DirtyMaths.getRandomFloat() - 0.5f);
-                    t2 = t2.scale(99);
-
-                    t = t.add(t2);
-
-                    // Set the camera focal point v(17,16,8) and Cast the ray
-                    // Accumulate the color returned in the p variable
-                    // Ray Direction with random deltas for stochastic sampling
-
-                    Vector3f dirA = a.scale(DirtyMaths.getRandomFloat() + x);
-                    Vector3f dirB = b.scale(DirtyMaths.getRandomFloat() + y);
-                    Vector3f dirC = dirA.add(dirB).add(c);
-
-                    Vector3f dir = t.scale(-1f).add(dirC.scale(16f)).normalise();
-
-                    // Ray Origin +p for color accumulation
-                    p = sample(rayOrigin.add(t), dir).scale(3.5f).add(p);
-
-                }
-
-                imageData[pixel++] = (byte) p.x;
-                imageData[pixel++] = (byte) p.y;
-                imageData[pixel++] = (byte) p.z;
+                workers[i].join();
+            }
+            catch (InterruptedException ie)
+            {
+                ie.printStackTrace();
             }
         }
 

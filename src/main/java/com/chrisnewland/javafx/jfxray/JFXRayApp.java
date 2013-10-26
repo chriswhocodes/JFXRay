@@ -28,7 +28,7 @@ public class JFXRayApp extends Application
     private GraphicsContext gc;
     private JFXRay raytracer;
 
-    final String[] lines = new String[9];
+    final String[] pattern = new String[9];
 
     final int ix = 512;
     final int iy = 512;
@@ -57,8 +57,8 @@ public class JFXRayApp extends Application
             }
         });
 
-        int width = 1024;
-        int height = 592;
+        int width = 600;
+        int height = 600;
 
         Canvas canvas = new Canvas(width, height);
         gc = canvas.getGraphicsContext2D();
@@ -72,15 +72,15 @@ public class JFXRayApp extends Application
         stage.setScene(scene);
         stage.show();
 
-        lines[0] = "1111111 111111 1       1";
-        lines[1] = "   1    1       1     1 ";
-        lines[2] = "   1    1        1   1  ";
-        lines[3] = "   1    1         1 1   ";
-        lines[4] = "   1    11111      1    ";
-        lines[5] = "   1    1         1 1   ";
-        lines[6] = "   1    1        1   1  ";
-        lines[7] = "   1    1       1     1 ";
-        lines[8] = "1111    1      1       1";
+        pattern[0] = "1111111 111111 1       1";
+        pattern[1] = "   1    1       1     1 ";
+        pattern[2] = "   1    1        1   1  ";
+        pattern[3] = "   1    1         1 1   ";
+        pattern[4] = "   1    11111      1    ";
+        pattern[5] = "   1    1         1 1   ";
+        pattern[6] = "   1    1        1   1  ";
+        pattern[7] = "   1    1       1     1 ";
+        pattern[8] = "1111    1      1       1";
 
         raytracer = new JFXRay();
 
@@ -89,7 +89,8 @@ public class JFXRayApp extends Application
             @Override
             public void run()
             {
-                raytracer.render(ix, iy, rays, lines, 2);
+                int threads = 8;
+                raytracer.render(ix, iy, rays, pattern, threads);
             }
         });
 
