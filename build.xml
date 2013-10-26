@@ -15,6 +15,9 @@
 		<filelist>
 			<file name="${env.JAVA_HOME}/jre/lib/jfxrt.jar" />
 		</filelist>
+		<filelist>
+			<file name="${lib}/dirtymaths-1.0.0-snapshot.jar" />
+		</filelist>
 	</path>
 
 	<target name="compile">

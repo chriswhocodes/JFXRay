@@ -89,7 +89,7 @@ public class JFXRayApp extends Application
             @Override
             public void run()
             {
-                int threads = 8;
+                int threads = 4;
                 raytracer.render(ix, iy, rays, pattern, threads);
             }
         });

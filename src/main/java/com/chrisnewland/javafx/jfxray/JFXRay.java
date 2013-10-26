@@ -1,5 +1,7 @@
 package com.chrisnewland.javafx.jfxray;
 
+import com.chrisnewland.dirtymaths.DirtyMaths;
+
 /*
  * Standing on the shoulders of giants.
  * I did not invent this raytracer, I merely converted it from C to Java 
@@ -250,7 +252,7 @@ public class JFXRay
     {
         long start = System.currentTimeMillis();
 
-        DirtyMaths.init(4096);
+        DirtyMaths.initRandomFloat(4096);
 
         init(lines);
 
@@ -271,7 +273,7 @@ public class JFXRay
         final Vector3f rayOrigin = new Vector3f(17f, 16f, 8f);
 
         final int linesPerThread = iy / threads;
-        System.out.println("LinesPerThread: " + linesPerThread);
+        //System.out.println("LinesPerThread: " + linesPerThread);
 
         Thread[] workers = new Thread[threads];
 
@@ -280,7 +282,7 @@ public class JFXRay
             final int startingLine = iy - 1 - (i * linesPerThread);
             final int pixelBufferOffset = i * linesPerThread;
 
-            System.out.println("Thread " + i + " plotting " + startingLine);
+            //System.out.println("Thread " + i + " plotting " + startingLine);
 
             Thread worker = new Thread(new Runnable()
             {
