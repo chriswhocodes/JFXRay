@@ -16,67 +16,15 @@ import com.chrisnewland.dirtymaths.DirtyMaths;
  */
 public class JFXRay
 {
-    // Define a vector class
-    class Vector3f
-    {
-        float x, y, z; // Vector has three float attributes.
-
-        // Empty constructor
-        Vector3f()
-        {
-        }
-
-        // Constructor
-        Vector3f(float a, float b, float c)
-        {
-            x = a;
-            y = b;
-            z = c;
-        }
-
-        // Vector add
-        Vector3f add(Vector3f r)
-        {
-            return new Vector3f(x + r.x, y + r.y, z + r.z);
-        }
-
-        // Vector scaling
-        Vector3f scale(float r)
-        {
-            return new Vector3f(x * r, y * r, z * r);
-        }
-
-        // Vector dot product
-        float dot(Vector3f r)
-        {
-            return x * r.x + y * r.y + z * r.z;
-        }
-
-        // Cross-product
-        Vector3f cross(Vector3f r)
-        {
-            return new Vector3f(y * r.z - z * r.y, z * r.x - x * r.z, x * r.y - y * r.x);
-        }
-
-        // Used later for normalizing the vector
-        Vector3f normalise()
-        {
-            float factor = (float) (1f / (float) Math.sqrt(dot(this)));
-
-            return scale(factor);
-        }
-
-        public String toString()
-        {
-            return x + "  " + y + "  " + z;
-        }
-    };
-
     private byte[] imageData;
 
-    private static boolean[][] data;
+    private boolean[][] data;
     private int rows;
     private int cols;
+    
+    private Vector3f floorColourOdd;
+    private Vector3f floorColourEven;
+    private Vector3f skyColour;
 
     private void init(String[] lines)
     {
@@ -91,7 +39,7 @@ public class JFXRay
             {
                 char ch = lines[r].charAt(c);
 
-                data[rows - 1 - r][cols - 1 - c] = ch == '1';
+                data[rows - 1 - r][cols - 1 - c] = ch == '*';
             }
         }
     }
@@ -109,7 +57,7 @@ public class JFXRay
 
         int m = 0;
 
-        float p2 = -o.z / d.z;
+        float p2 = -o.getZ() / d.getZ();
 
         if (.01 < p2)
         {
@@ -146,7 +94,6 @@ public class JFXRay
                             t = s;
                             n = (p.add(d.scale(t))).normalise();
                             m = 2;
-
                         }
                     }
                 }
@@ -171,7 +118,7 @@ public class JFXRay
         if (m == 0)
         {
             // No sphere found and the ray goes upward: Generate a sky color
-            return new Vector3f(.7f, .6f, 1f).scale((float) Math.pow(1 - direction.z, 4));
+            return skyColour.scale((float) Math.pow(1 - direction.getZ(), 4));
         }
 
         // A sphere was maybe hit.
@@ -217,22 +164,21 @@ public class JFXRay
 
         float p = (float) Math.pow(l.dot(rdash), 99);
 
-        if ((m & 1) == 1)
+        if (m == 1)
         {
             // No sphere was hit and the ray was going downward:
             h = h.scale(0.2f);
 
             // Generate a floor color
-
-            int ceil = (int) (Math.ceil(h.x) + Math.ceil(h.y));
-
+            int ceil = (int) (Math.ceil(h.getX()) + Math.ceil(h.getY()));
+           
             if ((ceil & 1) == 1)
             {
-                return new Vector3f(3, 1, 1).scale(b * .2f + .1f);
+                return floorColourOdd.scale(b * .2f + .1f);
             }
             else
             {
-                return new Vector3f(3, 3, 3).scale(b * .2f + .1f);
+                return floorColourEven.scale(b * .2f + .1f);
             }
         }
 
@@ -253,10 +199,14 @@ public class JFXRay
 
     }
 
-    public void render(final int ix, final int iy, final int rays, final String[] lines, int threads)
+    public void render(final int ix, final int iy, final int rays, final String[] lines, int threads, final Vector3f rayOrigin, final Vector3f camDirection, Vector3f oddColour, Vector3f evenColour, Vector3f skyColour)
     {
         long start = System.currentTimeMillis();
 
+        this.floorColourOdd = oddColour;
+        this.floorColourEven = evenColour;
+        this.skyColour = skyColour;
+                
         DirtyMaths.initRandomFloat(4096);
 
         init(lines);
@@ -264,7 +214,7 @@ public class JFXRay
         imageData = new byte[ix * iy * 3];
 
         // Camera direction
-        final Vector3f g = new Vector3f(-2, -12, 0).normalise();
+        final Vector3f g = camDirection.normalise();
 
         // Camera up vector...Seem Z is pointing up :/ WTF !
         final Vector3f a = new Vector3f(0, 0, 1).cross(g).normalise().scale(.003f);
@@ -274,8 +224,6 @@ public class JFXRay
 
         // WTF ? See https://news.ycombinator.com/item?id=6425965 for more.
         final Vector3f c = a.add(b).scale(-256).add(g);
-
-        final Vector3f rayOrigin = new Vector3f(17f, 16f, 8f);
 
         final int linesPerThread = iy / threads;
         //System.out.println("LinesPerThread: " + linesPerThread);
@@ -307,7 +255,7 @@ public class JFXRay
                             // Default pixel color is almost pitch black
                             Vector3f p = new Vector3f(13, 13, 13);
 
-                            // Cast 64 rays per pixel (For blur (stochastic
+                            // Cast rays per pixel (For blur (stochastic
                             // sampling) and
                             // soft-shadows.
                             for (int r = rays - 1; r >= 0; r--)
@@ -328,7 +276,7 @@ public class JFXRay
                                 t2 = t2.scale(99);
 
                                 t = t.add(t2);
-
+                                
                                 // Set the camera focal point v(17,16,8) and
                                 // Cast
                                 // the ray
@@ -349,9 +297,9 @@ public class JFXRay
 
                             }
 
-                            imageData[pixel++] = (byte) p.x;
-                            imageData[pixel++] = (byte) p.y;
-                            imageData[pixel++] = (byte) p.z;
+                            imageData[pixel++] = (byte) p.getX();
+                            imageData[pixel++] = (byte) p.getY();
+                            imageData[pixel++] = (byte) p.getZ();
                         }
                     }
                 }
@@ -375,6 +323,6 @@ public class JFXRay
 
         long stop = System.currentTimeMillis();
 
-        System.out.println("Took " + (stop - start) + "ms");
+        System.out.println("Rendered in " + (stop - start) + "ms");
     }
 }
