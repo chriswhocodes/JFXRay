@@ -2,12 +2,7 @@ package com.chrisnewland.javafx.jfxray;
 
 public class Vector3f
 {
-    private float x, y, z; // Vector has three float attributes.
-
-    // Empty constructor
-    public Vector3f()
-    {
-    }
+    private final float x, y, z; // Vector has three float attributes.
 
     // Constructor
     public Vector3f(float a, float b, float c)
@@ -27,6 +22,11 @@ public class Vector3f
     public Vector3f scale(float r)
     {
         return new Vector3f(x * r, y * r, z * r);
+    }
+    
+    public Vector3f invertScale(float r)
+    {
+        return new Vector3f(x / r, y / r, z / r);
     }
 
     // Vector dot product
@@ -68,5 +68,4 @@ public class Vector3f
     {
         return z;
     }
-
 }
