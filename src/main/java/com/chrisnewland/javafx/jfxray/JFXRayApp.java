@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013 Chris Newland. All rights reserved.
+ * Copyright (c) 2013-2014 Chris Newland. All rights reserved.
  * Licensed under https://github.com/chriswhocodes/JFXRay/blob/master/LICENSE-BSD
  * http://www.chrisnewland.com/
  */
@@ -12,6 +12,9 @@ import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
 import javafx.animation.TimelineBuilder;
 import javafx.application.Application;
+import javafx.application.Platform;
+import javafx.beans.value.ChangeListener;
+import javafx.beans.value.ObservableValue;
 import javafx.event.ActionEvent;
 import javafx.event.EventHandler;
 import javafx.scene.Scene;
@@ -124,10 +127,12 @@ public class JFXRayApp extends Application
 
 	private Timeline timeline;
 
-	String[] pattern = new String[9];
+	private String[] pattern = new String[9];
 
-	final int canvasWidth = 512;
-	final int canvasHeight = 512;
+	private int canvasWidth = 512;
+	private int canvasHeight = 512;
+	private Canvas canvas;
+	private Stage stage;
 
 	// Called by JFX
 	public JFXRayApp()
@@ -142,6 +147,8 @@ public class JFXRayApp extends Application
 	@Override
 	public void start(final Stage stage)
 	{
+		this.stage = stage;
+
 		stage.setOnCloseRequest(new EventHandler<WindowEvent>()
 		{
 			@Override
@@ -150,15 +157,51 @@ public class JFXRayApp extends Application
 			}
 		});
 
-		int width = 800;
+		int width = 840;
+		int controlsWidth = width - canvasWidth;
+
 		int height = canvasHeight;
 
-		Canvas canvas = new Canvas(canvasWidth, canvasHeight);
+		canvas = new Canvas(canvasWidth, canvasHeight);
 		gc = canvas.getGraphicsContext2D();
 		gc.fillRect(0, 0, canvasWidth, canvasHeight);
 
 		config.setImageWidth(canvasWidth);
 		config.setImageHeight(canvasHeight);
+
+		stage.widthProperty().addListener(new ChangeListener<Number>()
+		{
+			@Override
+			public void changed(ObservableValue<? extends Number> observableValue, Number oldSceneWidth, Number newSceneWidth)
+			{
+				config.setImageWidth(newSceneWidth.intValue()-controlsWidth);
+
+				tfImageWidth.setText(Integer.toString(config.getImageWidth()));
+
+				canvasWidth = config.getImageWidth();
+
+				canvas.setWidth(canvasWidth);
+
+				gc.fillRect(0, 0, canvasWidth, canvasHeight);
+
+			}
+		});
+		stage.heightProperty().addListener(new ChangeListener<Number>()
+		{
+			@Override
+			public void changed(ObservableValue<? extends Number> observableValue, Number oldSceneHeight, Number newSceneHeight)
+			{
+				config.setImageHeight(newSceneHeight.intValue()-22);
+
+				tfImageHeight.setText(Integer.toString(config.getImageHeight()));
+
+				canvasHeight = config.getImageHeight();
+
+				canvas.setHeight(canvasHeight);
+
+				gc.fillRect(0, 0, canvasWidth, canvasHeight);
+			}
+		});
 
 		pattern[0] = "******* ****** *       *";
 		pattern[1] = "   *    *       *     * ";
@@ -173,10 +216,16 @@ public class JFXRayApp extends Application
 		taPattern = new TextArea();
 		taPattern.setStyle("-fx-font-family:monospace;");
 
+		StringBuilder builder = new StringBuilder();
+
 		for (String line : pattern)
 		{
-			taPattern.appendText(line + "\n");
+			builder.append(line).append("\n");
 		}
+
+		taPattern.appendText(builder.toString().trim());
+
+		taPattern.setPrefRowCount(2 + pattern.length);
 
 		config.setLines(pattern);
 
@@ -188,9 +237,9 @@ public class JFXRayApp extends Application
 		config.setEvenColour(new Vector3f(3, 1, 1));
 		config.setOddColour(new Vector3f(3, 3, 3));
 		config.setRayOrigin(new Vector3f(16, 18, 8));
-		config.setSkyColour(new Vector3f(.7f, .6f, 1f));
+		config.setSkyColour(new Vector3f(.4f, .4f, 1f));
 		config.setSphereReflectivity(0.5f);
-		config.setRays(20);
+		config.setRays(22);
 
 		// ==============================
 		// Image size
@@ -292,6 +341,7 @@ public class JFXRayApp extends Application
 			@Override
 			public void handle(ActionEvent e)
 			{
+				stage.setResizable(false);
 				startRaytracing();
 			}
 		});
@@ -311,6 +361,8 @@ public class JFXRayApp extends Application
 		vBoxControls.getChildren().add(hbBrightness);
 		vBoxControls.getChildren().add(hbRenderTime);
 		vBoxControls.getChildren().add(btnRayTrace);
+
+		vBoxControls.setMinWidth(controlsWidth);
 
 		HBox box = new HBox();
 		box.getChildren().add(vBoxControls);
@@ -385,12 +437,26 @@ public class JFXRayApp extends Application
 					config.setImageHeight(Integer.parseInt(tfImageHeight.getText()));
 					config.setSphereReflectivity(Float.parseFloat(tfSphereReflectivity.getText()));
 					config.setBrightness(Float.parseFloat(tfBrightness.getText()));
-					
+
 					config.setRayOrigin(viRayOrigin.getVector3f());
 					config.setOddColour(viOddColour.getVector3f());
 					config.setEvenColour(viEvenColour.getVector3f());
 					config.setCamDirection(viCamDirection.getVector3f());
 					config.setSkyColour(viSkyColour.getVector3f());
+
+					Platform.runLater(new Runnable()
+					{
+						@Override
+						public void run()
+						{
+							canvasWidth = config.getImageWidth();
+							canvasHeight = config.getImageHeight();
+
+							canvas.setWidth(canvasWidth);
+							canvas.setHeight(canvasHeight);
+						}
+					});
+
 				}
 				catch (NumberFormatException nfe)
 				{
@@ -402,11 +468,19 @@ public class JFXRayApp extends Application
 
 				raytracer.render(config);
 
-				updateCanvas();
+				Platform.runLater(new Runnable()
+				{
+					@Override
+					public void run()
+					{
+						updateCanvas();
 
-				timeline.stop();
+						timeline.stop();
 
-				btnRayTrace.setDisable(false);
+						btnRayTrace.setDisable(false);
+						stage.setResizable(true);
+					}
+				});
 			}
 		});
 
