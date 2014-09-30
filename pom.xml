@@ -46,8 +46,43 @@
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <jdk.version>1.7</jdk.version>
     </properties>
+
+  <profiles>
+        <profile>
+            <id>jdk7</id>
+            <activation>
+                <jdk>1.7</jdk>
+            </activation>
+            <properties>
+                <jfxrt.jar>${java.home}/lib/jfxrt.jar</jfxrt.jar>
+                <jdk.version>1.7</jdk.version>
+                <javafx.version>2.2</javafx.version>
+            </properties>
+        </profile>
+        <profile>
+            <id>jdk8</id>
+            <activation>
+                <jdk>1.8</jdk>
+            </activation>
+            <properties>
+                <jfxrt.jar>${java.home}/lib/ext/jfxrt.jar</jfxrt.jar>
+                <jdk.version>1.8</jdk.version>
+                <javafx.version>8</javafx.version>
+            </properties>
+        </profile>
+        <profile>
+            <id>jdk9</id>
+            <activation>
+                <jdk>1.9</jdk>
+            </activation>
+            <properties>
+                <jfxrt.jar>${java.home}/lib/ext/jfxrt.jar</jfxrt.jar>
+                <jdk.version>1.9</jdk.version>
+                <javafx.version>9</javafx.version>
+            </properties>
+        </profile>
+    </profiles>
 
     <dependencyManagement>
         <dependencies>
@@ -55,6 +90,11 @@
                 <groupId>junit</groupId>
                 <artifactId>junit</artifactId>
                 <version>4.11</version>
+            </dependency>
+            <dependency>
+                <groupId>com.oracle</groupId>
+                <artifactId>javafx</artifactId>
+                <version>${javafx.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>
@@ -69,11 +109,9 @@
         <dependency>
             <groupId>com.oracle</groupId>
             <artifactId>javafx</artifactId>
-            <version>2.2</version>
-            <systemPath>${java.home}/lib/jfxrt.jar</systemPath>
+            <systemPath>${jfxrt.jar}</systemPath>
             <scope>system</scope>
         </dependency>
-
     </dependencies>
 
     <build>
@@ -233,16 +271,15 @@
                         <mainClass>com.chrisnewland.javafx.jfxray.JFXRayLaunch</mainClass>
                     </configuration>
                     <dependencies>
-                        <dependency>
+	               <dependency>
                             <groupId>com.oracle</groupId>
                             <artifactId>javafx</artifactId>
-                            <version>2.2</version>
-                            <systemPath>${java.home}/lib/jfxrt.jar</systemPath>
+                            <version>${javafx.version}</version>
+                            <systemPath>${jfxrt.jar}</systemPath>
                             <scope>system</scope>
                         </dependency>
                     </dependencies>
                 </plugin>
-
 
                 <!-- This plugin's configuration is used to store Eclipse m2e settings 
                     only. It has no influence on the Maven build itself. -->
